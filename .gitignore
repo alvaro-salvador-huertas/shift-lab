@@ -1,0 +1,31 @@
+.venv/
+.venv-*/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.cache/
+.env
+.env.*
+.streamlit/secrets.toml
+.DS_Store
+artifacts/review-20261104/baseline/
+.review-local-20261104/
+
+# Material interno conservado localmente; fuera de la propuesta pública.
+artifacts/review-*/
+artifacts/verification/
+artifacts/browser-*.json
+artifacts/validation/figures/
+REANUDAR.md
+docs/verificacion.md
+docs/design.md
+docs/screenshots/*
+!docs/screenshots/validation-v2-resumen-desktop.png
+!docs/screenshots/validation-v2-curva-mobile-detail.png
+!docs/screenshots/validation-v2-comparacion-mobile-detail.png
+!docs/screenshots/validation-detail-confusion-mobile.png
+
+# Metadatos locales privados.
+.agents/
+.codex/
+.aws/

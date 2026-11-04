@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "shift-lab"
+version = "1.0.0"
+description = "Laboratorio reproducible de degradación de imágenes y aumentación"
+requires-python = ">=3.12"
+dependencies = ["numpy", "pandas", "scipy", "scikit-learn", "streamlit", "plotly", "pillow", "threadpoolctl"]
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[tool.setuptools.packages.find]
+include = ["shiftlab*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

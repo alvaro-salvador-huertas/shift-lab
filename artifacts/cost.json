@@ -1,0 +1,85 @@
+{
+  "schema_version": "shiftlab-cost/1",
+  "created_at": "2026-10-29T11:56:37.932434+00:00",
+  "identity": {
+    "protocol_digest": "97a874eb85399c74b43f2c124710c2a683160b3b800cc3023514c74c5d9f29a5",
+    "dataset_digest": "87ff0c9e40dc7e2c0e34e7257799c2e3f3aec1a016363bb11cad869ec428a826",
+    "split_digest": "6ab482d7c59adbae532f6f0f44b0ce3e9209419cc34695301c16e62e43362cb0",
+    "code_identity": {
+      "files": {
+        "docs/protocolo.md": "c116b31124e7b0ff6d777bc848bc62679de0a3e85d70dce40a175859443026cc",
+        "pyproject.toml": "63074e6fbc61f1df21d29afc4019cc4d1a0baf5a007b1a1fcf9945a06996299c",
+        "requirements.txt": "f1fe08c7154806de7bf327f78fbd4999e58ebcaaad216d0a075e2c9d9d4684c9",
+        "shiftlab/__init__.py": "62790f4543d2e9a8f498767ea7bdc7b83a1ada874064904d87e6e1b4d66ed901",
+        "shiftlab/__main__.py": "657fa9c11af0b7120cd55bd49292dc9b3ed3bb429ad0fbf63bc726238762d49e",
+        "shiftlab/data.py": "e4599af899a6046f31de4defe69b519aa195b537f878917afbdd44384a053f32",
+        "shiftlab/models.py": "d46593df65dbedc392edb86fdd5965d9d702d0f9b6f9b14ad8031414df771621",
+        "shiftlab/protocol.py": "b64de8ff16afcf7ff3766a19a44e3d5c36943a17a0011aaea378ae77f58119fd",
+        "shiftlab/results.py": "83990a216188a64e0a56ec3929d04910538d3d96ca17d7c0d4a47ea039ea734e",
+        "shiftlab/runner.py": "d5c00d74c57c04e84b1449df434686d567ab9063e177bb4786fb3001f78160da",
+        "shiftlab/transforms.py": "51ac027617ca0196b11199eda8c55bc17cd951f79106d76fae5450339d7ef77b"
+      },
+      "digest": "31aa29f0ec1db924b6928dfeca98a2b41c3c217fae660abd457df0ef353a4a26",
+      "scope": "Todos los módulos del motor shiftlab; interfaz y documentos no alteran el entrenamiento."
+    },
+    "versions": {
+      "python": "3.12.3",
+      "numpy": "2.5.4",
+      "pandas": "3.1.0",
+      "scipy": "1.18.1",
+      "scikit_learn": "1.9.1"
+    }
+  },
+  "entries": [
+    {
+      "candidate": "baseline",
+      "seconds": 0.19506006200390402,
+      "warnings": [],
+      "prediction_count": 359,
+      "split": "validation"
+    },
+    {
+      "candidate": "logistic_clean",
+      "seconds": 0.201450130000012,
+      "warnings": [],
+      "prediction_count": 359,
+      "split": "validation"
+    },
+    {
+      "candidate": "logistic_augmented",
+      "seconds": 0.2481574549965444,
+      "warnings": [],
+      "prediction_count": 359,
+      "split": "validation"
+    },
+    {
+      "candidate": "svm_clean",
+      "seconds": 0.21655917500174837,
+      "warnings": [
+        {
+          "category": "FutureWarning",
+          "message": "The `probability` parameter was deprecated in 1.9 and will be removed in version 1.11. Use `CalibratedClassifierCV(SVC(), ensemble=False)` instead of `SVC(probability=True)`"
+        }
+      ],
+      "prediction_count": 359,
+      "split": "validation"
+    },
+    {
+      "candidate": "svm_augmented",
+      "seconds": 0.4407707680002204,
+      "warnings": [
+        {
+          "category": "FutureWarning",
+          "message": "The `probability` parameter was deprecated in 1.9 and will be removed in version 1.11. Use `CalibratedClassifierCV(SVC(), ensemble=False)` instead of `SVC(probability=True)`"
+        }
+      ],
+      "prediction_count": 359,
+      "split": "validation"
+    }
+  ],
+  "elapsed_seconds": 1.302010771993082,
+  "conservative_estimate_seconds": 26.04021543986164,
+  "budget_seconds": 600,
+  "within_budget": true,
+  "note": "Sin predicciones ni métricas de test; no se seleccionan configuraciones por la puntuación."
+}
