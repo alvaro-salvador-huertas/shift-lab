@@ -86,6 +86,43 @@ Las diez condiciones y las predicciones completas permanecen en `artifacts/final
 
 Gráficos HTML autónomos finales: [comparación](artifacts/final/figures/comparacion.html), [curva de ruido](artifacts/final/figures/curva-ruido.html) y [matriz de confusión](artifacts/final/figures/matriz-confusion.html). Los archivos anteriores de validación y las capturas previas se conservan. Repetir ahora el mismo test sirve para reproducir cálculos y no constituye una confirmación independiente.
 
+## Abstención exploratoria sobre validación
+
+Experimento local separado del motor congelado y de la interfaz. Reutiliza la
+logística de train limpio y las transformaciones originales; no lee resultados
+ni evalúa imágenes del test final. **Es exploratorio:** la validación original
+ya se usó en el desarrollo de ShiftLab; dividirla ahora no aporta confirmación
+independiente. `max(predict_proba)` es una puntuación de selección, no una
+probabilidad calibrada de acertar.
+
+Desde la raíz, con el entorno original y `artifacts/prepared.json` conservado:
+
+```bash
+.venv/bin/python -m experiments.abstention --output artifacts/abstention-reproduccion-01
+```
+
+El comando exige una carpeta nueva. Ajusta una vez sobre todo el train original
+y subdivide únicamente la validación mediante `StratifiedGroupKFold` de dos
+folds, con `shuffle=True` y semilla 20261111. Agrupa por el SHA256 original y
+mantiene todas las versiones en el subconjunto de su imagen. Con imágenes
+limpias del fold 0 elige el mayor umbral que acepte al menos el 95 %
+(`score >= umbral`, incluidos empates); lo fija antes de medir el fold 1.
+
+Compara clasificación obligatoria y abstención en esas mismas imágenes,
+limpias y con ruido σ=0,05 y σ=0,10. Exporta `results.json` con índices,
+grupos, puntuaciones, predicciones, máscaras y recuentos; `cobertura-error.html`
+autónomo con curvas descriptivas y puntos del umbral fijado; e `informe.txt`
+con el resultado y el comando. Sin aceptadas, la tasa de error es `null`.
+Las curvas de medición no se usan para seleccionar otro umbral.
+
+La [nota de abstención](docs/abstencion.md) detalla los errores y aciertos
+rechazados, los errores que siguen entre aceptadas y el coste del umbral fijado.
+Ejecución local conservada: [informe](artifacts/abstention-20261111/informe.txt),
+[JSON](artifacts/abstention-20261111/results.json) y
+[gráfica](artifacts/abstention-20261111/cobertura-error.html).
+Las pruebas de separación de grupos, umbral y recuentos se ejecutan con
+`.venv/bin/python -m pytest -q tests/test_abstention.py`.
+
 ## Verificación y aprendizaje
 
 ```bash

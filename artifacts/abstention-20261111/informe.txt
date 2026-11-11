@@ -1,0 +1,38 @@
+Abstención en ShiftLab — análisis exploratorio
+
+Análisis exploratorio: la validación original ya se usó en el desarrollo de ShiftLab. Esta subdivisión posterior no aporta confirmación independiente.
+max(predict_proba) del Pipeline de logística limpia es una puntuación de selección, no una probabilidad calibrada de acertar.
+
+Comando desde la raíz del proyecto: .venv/bin/python -m experiments.abstention --prepared artifacts/prepared.json --output artifacts/abstention-20261111
+Para repetir, usa otra carpeta de salida: se rechaza cualquier destino existente.
+
+Modelo original: StandardScaler + LogisticRegression(C=1, solver=lbfgs, max_iter=2000).
+Un solo ajuste, solo con las 1078 imágenes limpias del train original; pesos 1 y un hilo numérico.
+Validación original: 359 imágenes. StratifiedGroupKFold de dos folds, shuffle=True, semilla 20261111.
+Selección: 180; medición: 179. Grupos SHA256 disjuntos; versiones en el subconjunto de su original.
+Estratificación aproximada bajo restricción de grupos; distribuciones de clase e índices completos en el JSON.
+
+UMBRAL FIJADO: 0.67359796898404445; aceptar si score >= umbral, incluidos empates.
+Elegido solo con puntuaciones limpias de selección, sin usar etiquetas ni errores: 171/180 aceptadas (95.00%).
+Es el mayor corte con cobertura empírica >=95 % en esa mitad; no garantiza esa cobertura en la otra mitad ni con ruido.
+Se fijó antes de transformar o predecir la segunda mitad; no se reajusta por condición.
+
+Resultados sobre las mismas imágenes de medición (errores de las rechazadas = los que cometería el clasificador):
+Condición | Política | Total | Aceptadas | Rechazadas | Errores aceptadas | Errores rechazadas | Cobertura | Error aceptadas
+Limpio | Obligatoria | 179 | 179 | 0 | 8 | 0 | 100.00% | 4.47%
+Limpio | Umbral fijado | 179 | 166 | 13 | 2 | 6 | 92.74% | 1.20%
+Ruido · σ 0,05 | Obligatoria | 179 | 179 | 0 | 12 | 0 | 100.00% | 6.70%
+Ruido · σ 0,05 | Umbral fijado | 179 | 165 | 14 | 6 | 6 | 92.18% | 3.64%
+Ruido · σ 0,10 | Obligatoria | 179 | 179 | 0 | 29 | 0 | 100.00% | 16.20%
+Ruido · σ 0,10 | Umbral fijado | 179 | 161 | 18 | 23 | 6 | 89.94% | 14.29%
+
+Resultado del umbral fijado:
+- Limpio: 92.74% de cobertura; cambio de tasa de error -3.26 puntos porcentuales; 6 errores entre 13 rechazadas.
+- Ruido · σ 0,05: 92.18% de cobertura; cambio de tasa de error -3.07 puntos porcentuales; 6 errores entre 14 rechazadas.
+- Ruido · σ 0,10: 89.94% de cobertura; cambio de tasa de error -1.92 puntos porcentuales; 6 errores entre 18 rechazadas.
+
+Se muestran todas las condiciones, aunque la abstención ayude poco o empeore la tasa.
+Las líneas de cobertura-error son descriptivas de medición; sus estrellas marcan el umbral ya fijado y los círculos la clasificación obligatoria.
+Sin aceptadas, accepted_error_rate es null en JSON. Las versiones no son muestras independientes; no se estiman garantías poblacionales.
+No se ha leído ningún resultado del test final, ni se ha predicho o ajustado sobre test. No se modifican históricos, protocolo ni interfaz.
+Archivos: results.json, cobertura-error.html (autónomo, sin CDN), informe.txt.
