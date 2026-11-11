@@ -120,6 +120,19 @@ rechazados, los errores que siguen entre aceptadas y el coste del umbral fijado.
 Ejecución local conservada: [informe](artifacts/abstention-20261111/informe.txt),
 [JSON](artifacts/abstention-20261111/results.json) y
 [gráfica](artifacts/abstention-20261111/cobertura-error.html).
+
+Para regenerar los informes desde el JSON archivado, sin reentrenar:
+
+```bash
+.venv/bin/python -m experiments.abstention \
+  --from-results artifacts/abstention-20261111/results.json \
+  --output artifacts/abstention-regenerada-01
+```
+
+El comando conserva el umbral y los recuentos de todas las condiciones del JSON
+archivado. Exige una carpeta de salida nueva y genera `results.json`,
+`cobertura-error.html` e `informe.txt`.
+
 Las pruebas de separación de grupos, umbral y recuentos se ejecutan con
 `.venv/bin/python -m pytest -q tests/test_abstention.py`.
 
