@@ -355,8 +355,7 @@ def brief_report(payload, command, *, from_results=None):
         "Las líneas de cobertura-error son descriptivas de medición; sus estrellas marcan el umbral ya fijado y los círculos la clasificación obligatoria.",
         "Sin aceptadas, accepted_error_rate es null en JSON. Las versiones no son muestras independientes; no se estiman garantías poblacionales.",
         "No se ha leído ningún resultado del test final, ni se ha predicho o ajustado sobre test. No se modifican históricos, protocolo ni interfaz.",
-        ("Archivos: cobertura-error.html (autónomo, sin CDN), informe.txt." if from_results is not None
-         else "Archivos: results.json, cobertura-error.html (autónomo, sin CDN), informe.txt."),
+        "Archivos: results.json, cobertura-error.html (autónomo, sin CDN), informe.txt.",
     ])
     if from_results is not None:
         lines[1:1] = ["", "Regeneración desde resultados archivados, sin reentrenamiento.",
@@ -368,7 +367,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     source = parser.add_mutually_exclusive_group()
     source.add_argument("--prepared", type=Path, default=Path("artifacts/prepared.json"))
-    source.add_argument("--from-results", type=Path, help="Regenera solo HTML e informe desde un JSON de abstención, sin entrenar.")
+    source.add_argument("--from-results", type=Path, help="Regenera JSON, HTML e informe desde resultados archivados, sin entrenar.")
     parser.add_argument("--output", type=Path, required=True, help="Carpeta nueva; se rechaza si ya existe.")
     args = parser.parse_args(argv)
     # Fallar antes de entrenar o leer preparación si el destino ya existe.
@@ -382,18 +381,20 @@ def main(argv=None):
                    else run_experiment(args.prepared))
         figure = coverage_figure(payload)
         report = brief_report(payload, command, from_results=args.from_results)
-        # Completar validación, renderizado y serialización antes de crear la salida.
+        # Preparar y codificar los tres contenidos antes de crear la salida.
         files = {
             "cobertura-error.html": figure.to_html(full_html=True, include_plotlyjs=True, config={"displaylogo": False}),
             "informe.txt": report,
+            "results.json": json.dumps(payload, ensure_ascii=False, indent=2, allow_nan=False) + "\n",
         }
-        if args.from_results is None:
-            files["results.json"] = json.dumps(payload, ensure_ascii=False, indent=2, allow_nan=False) + "\n"
+        encoded_files = {name: content.encode("utf-8") for name, content in files.items()}
         # La carpeta se reclama de forma exclusiva; nunca se reutiliza un destino.
         args.output.mkdir(parents=True, exist_ok=False)
-        for name, content in files.items():
-            with (args.output / name).open("x", encoding="utf-8") as handle:
+        for name, content in encoded_files.items():
+            with (args.output / name).open("xb") as handle:
                 handle.write(content)
+    except UnicodeEncodeError:
+        parser.error("No se puede codificar la salida en UTF-8: contiene caracteres Unicode no válidos.")
     except (OSError, ValueError, KeyError) as exc:
         parser.error(str(exc))
     print(report)

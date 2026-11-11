@@ -44,7 +44,11 @@ def test_regeneration_preserves_published_payload_threshold_counts_and_source(tm
     monkeypatch.chdir(tmp_path)
     assert experiment.main(["--from-results", str(ARCHIVE), "--output", str(output)]) == 0
     assert captured["payload"] == archived
-    assert {p.name for p in output.iterdir()} == {"cobertura-error.html", "informe.txt"}
+    assert {p.name for p in output.iterdir()} == {"results.json", "cobertura-error.html", "informe.txt"}
+    regenerated = json.loads((output / "results.json").read_text(encoding="utf-8"))
+    assert regenerated == archived
+    assert regenerated["selection"]["threshold"] == archived["selection"]["threshold"]
+    assert regenerated["evaluation"]["conditions"] == archived["evaluation"]["conditions"]
     assert hashlib.sha256(ARCHIVE.read_bytes()).hexdigest() == source_hash
     figure = captured["figure"]
     assert f"{archived['selection']['threshold']:.8f}" in figure.layout.title.text
@@ -96,6 +100,26 @@ def test_invalid_json_has_clear_diagnostic_and_creates_no_output(tmp_path, capsy
     assert exc.value.code == 2 and "JSON de abstención inválido o ilegible" in diagnostic
     assert str(source) in diagnostic
     assert not output.parent.exists()
+
+
+@pytest.mark.parametrize("field", ["clean_label", "provenance_note"])
+def test_unpaired_surrogate_is_rejected_before_creating_output(tmp_path, archived, capsys, field):
+    if field == "clean_label":
+        archived["evaluation"]["conditions"]["clean"]["label"] = chr(0xD800)
+    else:
+        # También debe codificarse el JSON, aunque el texto no se dibuje ni se informe.
+        archived["provenance"]["note"] = chr(0xD800)
+    source = tmp_path / "surrogate.json"
+    source.write_text(json.dumps(archived, ensure_ascii=True), encoding="utf-8")
+    assert json.loads(source.read_text(encoding="utf-8")) == archived
+    output = tmp_path / "new-parent" / "output"
+    with pytest.raises(SystemExit) as exc:
+        experiment.main(["--from-results", str(source), "--output", str(output)])
+    diagnostic = capsys.readouterr().err
+    assert exc.value.code == 2
+    assert "UTF-8" in diagnostic and "Unicode no válidos" in diagnostic
+    assert "Traceback" not in diagnostic
+    assert not output.exists() and not output.parent.exists()
 
 
 @pytest.mark.parametrize("mutation", [
