@@ -1,6 +1,7 @@
 """Abstención exploratoria sobre validación; nunca evalúa el test final.
 
 Desde la raíz: .venv/bin/python -m experiments.abstention --output CARPETA_NUEVA
+Sin entrenar: añadir --from-results RUTA_AL_JSON al comando anterior.
 """
 
 import argparse
@@ -238,7 +239,86 @@ def _percentage(value):
     return "sin definir" if value is None else f"{value:.2%}"
 
 
-def brief_report(payload, command):
+def load_abstention_results(path):
+    """Valida el archivo por sí mismo, sin datos externos, ajustes ni selección."""
+    def require(condition, message):
+        if not condition:
+            raise ValueError(message)
+
+    def rows(value):
+        require(isinstance(value, list) and bool(value)
+                and all(type(row) is int and row >= 0 for row in value)
+                and len(set(value)) == len(value), "IDs de imagen inválidos o repetidos")
+        return value
+
+    def number(value):
+        return type(value) in (int, float) and math.isfinite(value)
+
+    def invalid_constant(value):
+        raise ValueError(f"Constante no permitida en JSON: {value}")
+
+    try:
+        payload = json.loads(Path(path).read_text(encoding="utf-8"), parse_constant=invalid_constant)
+        require(isinstance(payload, dict), "se esperaba un objeto JSON")
+        require(payload["schema_version"] == "shiftlab-abstention/1", "schema_version no compatible")
+        require(payload["analysis"] == "exploratory", "el análisis debe ser exploratorio")
+        train = rows(payload["original_train_row_ids"])
+        validation = rows(payload["original_validation_row_ids"])
+        halves = payload["validation_subsets"]
+        selection, evaluation = payload["selection"], payload["evaluation"]
+        selected = rows(halves["selection"]["row_ids"])
+        evaluated = rows(halves["evaluation"]["row_ids"])
+        require(set(selected).isdisjoint(evaluated) and set(selected + evaluated) == set(validation)
+                and set(train).isdisjoint(validation), "subconjuntos de imágenes incompatibles")
+        for name, subset_rows in (("selection", selected), ("evaluation", evaluated)):
+            require(halves[name]["total"] == len(subset_rows), f"total de {name} incoherente")
+        require(set(halves["selection"]["groups"]).isdisjoint(halves["evaluation"]["groups"]),
+                "grupos compartidos entre selección y medición")
+        require(type(halves["seed"]) is int, "semilla de subdivisión inválida")
+        threshold = selection["threshold"]
+        require(number(threshold) and 0 <= threshold <= 1, "umbral inválido")
+        require(evaluation["fixed_threshold"] == threshold, "umbrales archivados distintos")
+        require(selection["row_ids"] == selected and evaluation["row_ids"] == evaluated,
+                "IDs desalineados en selección o medición")
+        scores = _scores(selection["scores"])
+        require(selection["condition"] == "clean" and selection["target_coverage"] == MIN_COVERAGE,
+                "la selección debe corresponder al objetivo original sobre limpio")
+        accepted = int((scores >= threshold).sum())
+        require(len(scores) == selection["total"] == len(selected)
+                and selection["accepted"] == accepted
+                and selection["coverage"] == accepted / len(scores)
+                and selection["coverage"] >= MIN_COVERAGE, "recuentos de selección incoherentes")
+        truth = evaluation["y_true"]
+        require(isinstance(truth, list) and len(truth) == len(evaluated)
+                and all(type(label) is int and 0 <= label <= 9 for label in truth),
+                "etiquetas de medición inválidas")
+        require(set(evaluation["conditions"]) == set(CONDITIONS), "condiciones ausentes o desconocidas")
+        for condition, result in evaluation["conditions"].items():
+            require(isinstance(result["label"], str) and bool(result["label"]), f"etiqueta inválida: {condition}")
+            require(result["row_ids"] == evaluated, f"IDs desalineados: {condition}")
+            prediction, scores = result["y_pred"], _scores(result["scores"])
+            require(isinstance(prediction, list) and len(prediction) == len(evaluated) == len(scores)
+                    and all(type(label) is int and 0 <= label <= 9 for label in prediction),
+                    f"predicciones inválidas: {condition}")
+            mask = result["accepted_mask"]
+            require(isinstance(mask, list) and all(type(value) is bool for value in mask)
+                    and mask == (scores >= threshold).tolist(), f"máscara incoherente: {condition}")
+            for policy, cutoff in (("mandatory", 0.0), ("abstention", threshold)):
+                counts = result[policy]
+                require(all(type(counts[key]) is int for key in
+                            ("total", "accepted", "rejected", "errors_accepted", "errors_rejected"))
+                        and number(counts["coverage"])
+                        and (counts["accepted_error_rate"] is None or number(counts["accepted_error_rate"]))
+                        and counts == policy_counts(truth, prediction, scores, cutoff),
+                        f"recuentos incoherentes: {condition}/{policy}")
+            require(result["descriptive_curve"] == risk_coverage_curve(truth, prediction, scores),
+                    f"curva incoherente: {condition}")
+        return payload
+    except (OSError, ValueError, KeyError, TypeError, IndexError, AttributeError, OverflowError, RecursionError) as exc:
+        raise ValueError(f"JSON de abstención inválido o ilegible ({path}): {exc}") from exc
+
+
+def brief_report(payload, command, *, from_results=None):
     selection = payload["selection"]
     halves = payload["validation_subsets"]
     lines = [
@@ -247,7 +327,7 @@ def brief_report(payload, command):
         "Para repetir, usa otra carpeta de salida: se rechaza cualquier destino existente.", "",
         "Modelo original: StandardScaler + LogisticRegression(C=1, solver=lbfgs, max_iter=2000).",
         f"Un solo ajuste, solo con las {len(payload['original_train_row_ids'])} imágenes limpias del train original; pesos 1 y un hilo numérico.",
-        f"Validación original: {len(payload['original_validation_row_ids'])} imágenes. StratifiedGroupKFold de dos folds, shuffle=True, semilla {SUBSPLIT_SEED}.",
+        f"Validación original: {len(payload['original_validation_row_ids'])} imágenes. StratifiedGroupKFold de dos folds, shuffle=True, semilla {halves['seed']}.",
         f"Selección: {halves['selection']['total']}; medición: {halves['evaluation']['total']}. Grupos SHA256 disjuntos; versiones en el subconjunto de su original.",
         "Estratificación aproximada bajo restricción de grupos; distribuciones de clase e índices completos en el JSON.", "",
         f"UMBRAL FIJADO: {selection['threshold']:.17g}; aceptar si score >= umbral, incluidos empates.",
@@ -275,33 +355,45 @@ def brief_report(payload, command):
         "Las líneas de cobertura-error son descriptivas de medición; sus estrellas marcan el umbral ya fijado y los círculos la clasificación obligatoria.",
         "Sin aceptadas, accepted_error_rate es null en JSON. Las versiones no son muestras independientes; no se estiman garantías poblacionales.",
         "No se ha leído ningún resultado del test final, ni se ha predicho o ajustado sobre test. No se modifican históricos, protocolo ni interfaz.",
-        "Archivos: results.json, cobertura-error.html (autónomo, sin CDN), informe.txt.",
+        ("Archivos: cobertura-error.html (autónomo, sin CDN), informe.txt." if from_results is not None
+         else "Archivos: results.json, cobertura-error.html (autónomo, sin CDN), informe.txt."),
     ])
+    if from_results is not None:
+        lines[1:1] = ["", "Regeneración desde resultados archivados, sin reentrenamiento.",
+                      f"JSON de origen: {from_results}", "Las cifras y el ajuste descritos proceden del archivo original."]
     return "\n".join(lines) + "\n"
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--prepared", type=Path, default=Path("artifacts/prepared.json"))
+    source = parser.add_mutually_exclusive_group()
+    source.add_argument("--prepared", type=Path, default=Path("artifacts/prepared.json"))
+    source.add_argument("--from-results", type=Path, help="Regenera solo HTML e informe desde un JSON de abstención, sin entrenar.")
     parser.add_argument("--output", type=Path, required=True, help="Carpeta nueva; se rechaza si ya existe.")
     args = parser.parse_args(argv)
     # Fallar antes de entrenar o leer preparación si el destino ya existe.
-    if args.output.exists():
+    if args.output.exists() or args.output.is_symlink():
         parser.error("La carpeta de salida ya existe. Se conserva; usa una carpeta nueva.")
-    command = shlex.join([".venv/bin/python", "-m", "experiments.abstention", "--prepared", str(args.prepared), "--output", str(args.output)])
+    source_flag, source_path = (("--from-results", args.from_results) if args.from_results is not None
+                                else ("--prepared", args.prepared))
+    command = shlex.join([".venv/bin/python", "-m", "experiments.abstention", source_flag, str(source_path), "--output", str(args.output)])
     try:
-        payload = run_experiment(args.prepared)
+        payload = (load_abstention_results(args.from_results) if args.from_results is not None
+                   else run_experiment(args.prepared))
         figure = coverage_figure(payload)
-        report = brief_report(payload, command)
-        # La carpeta se reclama de forma exclusiva antes de escribir los tres archivos.
+        report = brief_report(payload, command, from_results=args.from_results)
+        # Completar validación, renderizado y serialización antes de crear la salida.
+        files = {
+            "cobertura-error.html": figure.to_html(full_html=True, include_plotlyjs=True, config={"displaylogo": False}),
+            "informe.txt": report,
+        }
+        if args.from_results is None:
+            files["results.json"] = json.dumps(payload, ensure_ascii=False, indent=2, allow_nan=False) + "\n"
+        # La carpeta se reclama de forma exclusiva; nunca se reutiliza un destino.
         args.output.mkdir(parents=True, exist_ok=False)
-        with (args.output / "results.json").open("x", encoding="utf-8") as handle:
-            json.dump(payload, handle, ensure_ascii=False, indent=2, allow_nan=False)
-            handle.write("\n")
-        with (args.output / "cobertura-error.html").open("x", encoding="utf-8") as handle:
-            handle.write(figure.to_html(full_html=True, include_plotlyjs=True, config={"displaylogo": False}))
-        with (args.output / "informe.txt").open("x", encoding="utf-8") as handle:
-            handle.write(report)
+        for name, content in files.items():
+            with (args.output / name).open("x", encoding="utf-8") as handle:
+                handle.write(content)
     except (OSError, ValueError, KeyError) as exc:
         parser.error(str(exc))
     print(report)
