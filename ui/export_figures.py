@@ -1,6 +1,8 @@
 """Exportación explícita de gráficos autónomos a partir del mismo resultado validado."""
 
 import argparse
+from errno import EEXIST
+from os.path import lexists
 from pathlib import Path
 
 from shiftlab.results import load_results
@@ -12,9 +14,10 @@ def main(argv=None):
     parser.add_argument("--results",type=Path,required=True)
     parser.add_argument("--output",type=Path,required=True)
     args=parser.parse_args(argv)
-    # Reservar una carpeta nueva antes de cargar o escribir ningún gráfico.
-    args.output.mkdir(parents=True,exist_ok=False)
+    if lexists(args.output):
+        raise FileExistsError(EEXIST, "El destino ya existe", args.output)
     results=load_results(args.results)
+    args.output.mkdir(parents=True,exist_ok=False)
     # Decisiones visuales fijadas con validación antes de observar test.
     candidate="logistic_clean"
     scenario="noise_005"
